@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EZTIME – Analytics</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f0f2f5;
+      --surface: #ffffff;
+      --surface2: #f8fafc;
+      --border: #e2e8f0;
+      --accent: #1e293b;
+      --gold: #d97706;
+      --blue: #3b82f6;
+      --text: #0f172a;
+      --muted: #64748b;
+      --green: #059669;
+      --red: #dc2626;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px; min-height: 100vh; }
+
+    nav {
+      background: var(--accent); height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 32px; position: sticky; top: 0; z-index: 100;
+    }
+    .nav-logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 18px; color: #f59e0b; letter-spacing: -0.5px; }
+    .nav-logo span { color: #fff; }
+    .nav-links { display: flex; gap: 4px; }
+    .nav-link { padding: 6px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.5); text-decoration: none; transition: all 0.15s; }
+    .nav-link:hover { color: #fff; background: rgba(255,255,255,0.08); }
+    .nav-link.active { color: #fff; background: rgba(255,255,255,0.12); }
+
+    .main { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+    .page-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 24px; }
+    .page-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 26px; }
+    .page-subtitle { color: var(--muted); font-size: 13px; margin-top: 3px; }
+
+    .btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s; border: none; box-shadow: var(--shadow); }
+    .btn-dark { background: var(--accent); color: white; }
+    .btn-dark:hover { background: #334155; transform: translateY(-1px); box-shadow: var(--shadow-md); }
+    .btn-dark:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); }
+
+    .section-label { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+
+    .filters-card { padding: 20px 24px; margin-bottom: 14px; }
+    .filters-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; align-items: end; }
+    .filter-group label { display: block; font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 5px; }
+    .filter-select, .filter-input {
+      width: 100%; background: var(--surface2); border: 1.5px solid var(--border);
+      color: var(--text); padding: 8px 12px; border-radius: 8px;
+      font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      appearance: none; -webkit-appearance: none; cursor: pointer;
+    }
+    .filter-select:focus, .filter-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(30,41,59,0.07); }
+
+    .active-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; min-height: 26px; }
+    .active-label { font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .filter-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 11px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 20px; font-size: 12px; color: #92400e; font-weight: 500; cursor: pointer; transition: all 0.15s; }
+    .filter-chip:hover { background: #fde68a; }
+    .clear-all { font-size: 12px; color: var(--muted); cursor: pointer; text-decoration: underline; background: none; border: none; font-family: inherit; transition: color 0.15s; }
+    .clear-all:hover { color: var(--red); }
+
+    .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; }
+    .stat-card { padding: 16px 20px; }
+    .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; margin-bottom: 6px; }
+    .stat-value { font-family: 'DM Mono', monospace; font-size: 22px; font-weight: 500; }
+    .stat-value.gold { color: var(--gold); }
+    .stat-value.green { color: var(--green); }
+
+    .table-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .table-title { font-family: 'Syne', sans-serif; font-weight: 600; font-size: 15px; }
+    .table-count { font-family: 'DM Mono', monospace; font-size: 12px; color: var(--muted); background: var(--surface2); padding: 3px 10px; border-radius: 20px; border: 1px solid var(--border); }
+
+    table { width: 100%; border-collapse: collapse; }
+    thead th { padding: 10px 16px; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--muted); background: var(--surface2); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    tbody tr { border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #f8fafc; }
+    tbody tr:hover .row-arrow { opacity: 1; transform: translateX(0); color: var(--accent); }
+    tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
+    tbody td:last-child { text-align: right; }
+
+    .cell-date { font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500; color: var(--gold); background: #fef3c7; padding: 2px 8px; border-radius: 5px; display: inline-block; }
+    .cell-name { font-weight: 500; }
+    .cell-id { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 5px; font-size: 11px; font-weight: 500; margin: 2px 2px 2px 0; background: var(--surface2); border: 1px solid var(--border); color: var(--text); }
+    .hours-badge { font-family: 'DM Mono', monospace; font-weight: 500; font-size: 13px; }
+    .salary-badge { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--green); font-weight: 500; }
+    .row-arrow { color: #cbd5e1; font-size: 16px; opacity: 0.4; transform: translateX(-4px); transition: all 0.15s; display: inline-block; }
+
+    .empty-state { text-align: center; padding: 60px 20px; }
+    .empty-icon { font-size: 36px; margin-bottom: 12px; }
+    .empty-title { font-family: 'Syne', sans-serif; font-weight: 600; font-size: 15px; margin-bottom: 5px; }
+    .empty-sub { color: var(--muted); font-size: 13px; }
+    .loading { text-align: center; padding: 60px; color: var(--muted); font-size: 13px; }
+    .spinner { width: 22px; height: 22px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; margin: 0 auto 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .toast { position: fixed; bottom: 24px; right: 24px; padding: 11px 18px; border-radius: 10px; font-size: 13px; font-weight: 500; z-index: 999; opacity: 0; transform: translateY(8px); transition: all 0.25s; pointer-events: none; box-shadow: var(--shadow-md); }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.success { background: var(--green); color: white; }
+    .toast.error { background: var(--red); color: white; }
+    .toast.info { background: var(--accent); color: white; }
+
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 200; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+    .modal-overlay.open { display: flex; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; width: 90%; max-width: 540px; max-height: 90vh; overflow-y: auto; padding: 28px; animation: modalIn 0.2s ease; box-shadow: var(--shadow-md); }
+    @keyframes modalIn { from { opacity: 0; transform: scale(0.97) translateY(6px); } }
+    .modal-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
+    .modal-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 20px; }
+    .modal-subtitle { color: var(--muted); font-size: 13px; margin-top: 3px; }
+    .modal-close { background: var(--surface2); border: 1px solid var(--border); color: var(--muted); width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+    .modal-close:hover { background: var(--border); color: var(--text); }
+    .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+    .modal-stat { background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; }
+    .modal-stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; font-weight: 600; }
+    .modal-stat-value { font-family: 'DM Mono', monospace; font-size: 18px; font-weight: 500; }
+    .modal-stat-value.gold { color: var(--gold); }
+    .modal-stat-value.green { color: var(--green); }
+    .modal-section-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 700; margin: 14px 0 8px; }
+    .btn-open-day { display: block; width: 100%; margin-top: 20px; padding: 12px; background: var(--accent); color: white; border: none; border-radius: 10px; font-family: 'Syne', sans-serif; font-weight: 700; font-size: 14px; cursor: pointer; transition: all 0.15s; text-align: center; text-decoration: none; }
+    .btn-open-day:hover { background: #334155; transform: translateY(-1px); }
+
+    @media (max-width: 768px) {
+      .stats-bar { grid-template-columns: 1fr 1fr; }
+      .filters-grid { grid-template-columns: 1fr 1fr !important; }
+      .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+      thead th, tbody td { white-space: nowrap; }
+      .modal-grid { grid-template-columns: 1fr; }
+      nav, .main { padding-left: 16px; padding-right: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-logo">EZ<span>TIME</span></div>
+  <div class="nav-links">
+    <a href="/" class="nav-link">⏱ Attendance</a>
+    <a href="/analytics" class="nav-link active">📊 Analytics</a>
+  </div>
+</nav>
+
+<div class="main">
+  <div class="page-header">
+    <div>
+      <div class="page-title">Analytics</div>
+      <div class="page-subtitle">Drill down from any dimension to a full day breakdown</div>
+    </div>
+    <button class="btn btn-dark" id="loadTestBtn">⬆ Load Test Data</button>
+  </div>
+
+  <div class="card filters-card">
+    <div class="section-label">Filter by</div>
+    <div class="filters-grid">
+      <div class="filter-group" style="position:relative">
+        <label>Employee</label>
+        <select id="f_employee" style="display:none"><option value="">All Employees</option></select>
+        <div id="empPickerWrap" style="position:relative">
+          <input id="empSearch" type="text" placeholder="All Employees" autocomplete="off"
+            class="filter-input"
+            onfocus="openEmpDd()" oninput="filterEmpDd(this.value)" />
+          <div id="empDropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.1);max-height:220px;overflow-y:auto;z-index:50"></div>
+        </div>
+      </div>
+      <div class="filter-group">
+        <label>Company</label>
+        <select class="filter-select" id="f_company"><option value="">All Companies</option></select>
+      </div>
+      <div class="filter-group">
+        <label>Role</label>
+        <select class="filter-select" id="f_role"><option value="">All Roles</option></select>
+      </div>
+      <div class="filter-group">
+        <label>From Date</label>
+        <input type="date" class="filter-input" id="f_date_from" />
+      </div>
+      <div class="filter-group">
+        <label>To Date</label>
+        <input type="date" class="filter-input" id="f_date_to" />
+      </div>
+    </div>
+  </div>
+
+  <div class="active-filters" id="activeFilters"></div>
+
+  <div class="stats-bar">
+    <div class="card stat-card"><div class="stat-label">Records</div><div class="stat-value gold" id="statCount">—</div></div>
+    <div class="card stat-card"><div class="stat-label">Total Hours</div><div class="stat-value" id="statHours">—</div></div>
+    <div class="card stat-card"><div class="stat-label">Total Salary</div><div class="stat-value green" id="statSalary">—</div></div>
+    <div class="card stat-card"><div class="stat-label">Avg Hours / Day</div><div class="stat-value" id="statAvg">—</div></div>
+  </div>
+
+  <div class="card">
+    <div class="table-header">
+      <div class="table-title">Results</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <button onclick="exportCSV()" id="exportBtn" style="display:none;align-items:center;gap:6px;padding:6px 14px;background:#1e293b;color:white;border:none;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;transition:all 0.15s" onmouseover="this.style.background='#334155'" onmouseout="this.style.background='#1e293b'">
+          ⬇ Export CSV
+        </button>
+        <div class="table-count" id="tableCount">0 rows</div>
+      </div>
+    </div>
+    <div id="tableBody" style="overflow-x:auto"><div class="loading"><div class="spinner"></div>Loading...</div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modalTitle">Day Detail</div>
+        <div class="modal-subtitle" id="modalSubtitle"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let allRows = [];
+  let filters = { employee:'', company:'', role:'', date_from:'', date_to:'' };
+
+  const showToast = (msg, type='info') => {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.className = `toast ${type} show`;
+    setTimeout(() => t.classList.remove('show'), 3000);
+  };
+  const fmtDate = d => { if(!d) return '—'; const [y,m,day]=d.split('-'); return `${day}/${m}/${y}`; };
+  const fmtSalary = n => (!n && n!==0) ? '—' : '₪'+Number(n).toLocaleString('he-IL',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  let empList = [];
+
+  function renderEmpList(filtered) {
+    const dd = document.getElementById('empDropdown');
+    dd.innerHTML = '';
+    // "All" option
+    const allDiv = document.createElement('div');
+    allDiv.textContent = 'All Employees';
+    allDiv.style.cssText = 'padding:9px 14px;font-size:13px;cursor:pointer;color:#64748b;border-bottom:1px solid #f1f5f9';
+    allDiv.onmouseenter = () => allDiv.style.background='#f8fafc';
+    allDiv.onmouseleave = () => allDiv.style.background='';
+    allDiv.onclick = () => selectEmp({ id:'', name:'' });
+    dd.appendChild(allDiv);
+    filtered.forEach(e => {
+      const div = document.createElement('div');
+      div.innerHTML = `<span style="font-family:'DM Mono',monospace;font-size:11px;color:#64748b;margin-right:8px">${e.id}</span>${e.name}`;
+      div.style.cssText = 'padding:9px 14px;font-size:13px;cursor:pointer;transition:background 0.1s';
+      div.onmouseenter = () => div.style.background='#f8fafc';
+      div.onmouseleave = () => div.style.background='';
+      div.onclick = () => selectEmp(e);
+      dd.appendChild(div);
+    });
+  }
+
+  function openEmpDd() {
+    renderEmpList(empList);
+    document.getElementById('empDropdown').style.display = 'block';
+  }
+
+  function filterEmpDd(q) {
+    const lower = q.toLowerCase();
+    const filtered = empList.filter(e => e.id.toLowerCase().includes(lower) || e.name.toLowerCase().includes(lower));
+    renderEmpList(filtered);
+    document.getElementById('empDropdown').style.display = 'block';
+  }
+
+  function selectEmp(e) {
+    filters.employee = e.id;
+    document.getElementById('f_employee').value = e.id;
+    document.getElementById('empSearch').value = e.id ? `${e.id} — ${e.name}` : '';
+    document.getElementById('empDropdown').style.display = 'none';
+    fetchData();
+    renderActiveFilters();
+  }
+
+  document.addEventListener('click', ev => {
+    if (!document.getElementById('empPickerWrap').contains(ev.target))
+      document.getElementById('empDropdown').style.display = 'none';
+  });
+
+  async function loadOptions() {
+    const data = await fetch('/api/v1/analytics/options').then(r=>r.json());
+    // Sort employees ascending by id
+    empList = (data.employees || []).sort((a,b) => a.id.localeCompare(b.id));
+    const empSel = document.getElementById('f_employee');
+    empList.forEach(e => { const o=document.createElement('option'); o.value=e.id; o.textContent=`${e.name} (${e.id})`; empSel.appendChild(o); });
+    const coSel = document.getElementById('f_company');
+    data.companies.forEach(c => { const o=document.createElement('option'); o.value=c; o.textContent=c; coSel.appendChild(o); });
+    const roleSel = document.getElementById('f_role');
+    data.roles.forEach(r => { const o=document.createElement('option'); o.value=r; o.textContent=r; roleSel.appendChild(o); });
+  }
+
+  async function fetchData() {
+    document.getElementById('tableBody').innerHTML = '<div class="loading"><div class="spinner"></div>Loading...</div>';
+    const params = new URLSearchParams();
+    if(filters.employee) params.set('employee_id', filters.employee);
+    if(filters.company) params.set('company', filters.company);
+    if(filters.role) params.set('role', filters.role);
+    if(filters.date_from) params.set('date_from', filters.date_from);
+    if(filters.date_to) params.set('date_to', filters.date_to);
+    const data = await fetch('/api/v1/analytics/data?'+params).then(r=>r.json());
+    allRows = data.rows || [];
+    renderTable(); renderStats(); renderActiveFilters();
+  }
+
+  function renderTable() {
+    const container = document.getElementById('tableBody');
+    document.getElementById('tableCount').textContent = `${allRows.length} rows`;
+    if(!allRows.length) {
+      container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">No results found</div><div class="empty-sub">Try adjusting your filters or load test data</div></div>`;
+      return;
+    }
+    let html = `<table><thead><tr><th>Date</th><th>Employee</th><th>Companies</th><th>Roles</th><th>Hours</th><th>Salary</th><th></th></tr></thead><tbody>`;
+    allRows.forEach((row,i) => {
+      html += `<tr data-idx="${i}">
+        <td><span class="cell-date">${fmtDate(row.work_date)}</span></td>
+        <td><div class="cell-name">${row.employee_name}</div><div class="cell-id">${row.employee_id}</div></td>
+        <td>${row.companies.map(c=>`<span class="tag">${c}</span>`).join('')}</td>
+        <td>${row.roles.map(r=>`<span class="tag">${r}</span>`).join('')}</td>
+        <td><span class="hours-badge">${row.total_hours}h</span></td>
+        <td><span class="salary-badge">${fmtSalary(row.daily_salary)}</span></td>
+        <td><span class="row-arrow">→</span></td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) exportBtn.style.display = allRows.length ? 'inline-flex' : 'none';
+    container.querySelectorAll('tbody tr').forEach(tr => {
+      tr.addEventListener('click', () => openDayModal(allRows[parseInt(tr.dataset.idx)]));
+    });
+  }
+
+  function renderStats() {
+    const count = allRows.length;
+    const totalHours = allRows.reduce((s,r)=>s+r.total_hours,0);
+    const totalSalary = allRows.reduce((s,r)=>s+(r.daily_salary||0),0);
+    document.getElementById('statCount').textContent = count;
+    document.getElementById('statHours').textContent = totalHours.toFixed(1)+'h';
+    document.getElementById('statSalary').textContent = fmtSalary(totalSalary);
+    document.getElementById('statAvg').textContent = (count>0?totalHours/count:0).toFixed(1)+'h';
+  }
+
+  function renderActiveFilters() {
+    const container = document.getElementById('activeFilters');
+    const labels = {employee:'Employee',company:'Company',role:'Role',date_from:'From',date_to:'To'};
+    const active = [];
+    for(const [key,val] of Object.entries(filters)) {
+      if(!val) continue;
+      let display = val;
+      if(key==='employee') { const opt=document.getElementById('f_employee').querySelector(`option[value="${val}"]`); if(opt) display=opt.textContent; }
+      if(key==='date_from'||key==='date_to') display=fmtDate(val);
+      active.push({key,label:labels[key],display});
+    }
+    if(!active.length) { container.innerHTML=''; return; }
+    let html = '<span class="active-label">Active:</span>';
+    active.forEach(f => { html+=`<span class="filter-chip" data-key="${f.key}">${f.label}: ${f.display} <span>×</span></span>`; });
+    if(active.length>1) html+=`<button class="clear-all" id="clearAllBtn">Clear all</button>`;
+    container.innerHTML = html;
+    container.querySelectorAll('.filter-chip').forEach(chip => {
+      chip.addEventListener('click', () => { filters[chip.dataset.key]=''; syncSelects(); fetchData(); });
+    });
+    const ca = document.getElementById('clearAllBtn');
+    if(ca) ca.addEventListener('click', () => { filters={employee:'',company:'',role:'',date_from:'',date_to:''}; syncSelects(); fetchData(); });
+  }
+
+  function syncSelects() {
+    ['company','role'].forEach(k => document.getElementById(`f_${k}`).value=filters[k]);
+    document.getElementById('f_date_from').value=filters.date_from;
+    document.getElementById('f_date_to').value=filters.date_to;
+    const emp = empList.find(e => e.id === filters.employee);
+    document.getElementById('empSearch').value = emp ? `${emp.id} — ${emp.name}` : '';
+  }
+
+  function openDayModal(row) {
+    document.getElementById('modalTitle').textContent = row.employee_name;
+    document.getElementById('modalSubtitle').textContent = `${fmtDate(row.work_date)} · ${row.employee_id}`;
+    document.getElementById('modalContent').innerHTML = `
+      <div class="modal-grid">
+        <div class="modal-stat"><div class="modal-stat-label">Total Hours</div><div class="modal-stat-value gold">${row.total_hours}h</div></div>
+        <div class="modal-stat"><div class="modal-stat-label">Daily Salary</div><div class="modal-stat-value green">${fmtSalary(row.daily_salary)}</div></div>
+      </div>
+      <div class="modal-section-label">Companies</div>
+      <div style="margin-bottom:4px">${row.companies.map(c=>`<span class="tag">${c}</span>`).join(' ')}</div>
+      <div class="modal-section-label">Roles</div>
+      <div>${row.roles.map(r=>`<span class="tag">${r}</span>`).join(' ')}</div>
+      <a class="btn-open-day" href="/?employee_id=${encodeURIComponent(row.employee_id)}&work_date=${row.work_date}&from=analytics">Open Full Day View →</a>`;
+    document.getElementById('modalOverlay').classList.add('open');
+  }
+
+  function closeModal() { document.getElementById('modalOverlay').classList.remove('open'); }
+  document.getElementById('modalOverlay').addEventListener('click', function(e) { if(e.target===this) closeModal(); });
+
+  document.getElementById('loadTestBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('loadTestBtn');
+    btn.disabled=true; btn.textContent='Loading...';
+    const data = await fetch('/api/v1/load-test-data',{method:'POST'}).then(r=>r.json());
+    btn.disabled=false; btn.textContent='⬆ Load Test Data';
+    showToast(data.loaded>0 ? `✅ Loaded ${data.loaded} records (${data.skipped} already existed)` : `ℹ️ All ${data.skipped} records already loaded`, data.loaded>0?'success':'info');
+    if(data.loaded>0) fetchData();
+  });
+
+  let debounceTimer;
+  function onFilterChange() {
+    filters.employee = document.getElementById('f_employee').value;
+    filters.company = document.getElementById('f_company').value;
+    filters.role = document.getElementById('f_role').value;
+    filters.date_from = document.getElementById('f_date_from').value;
+    filters.date_to = document.getElementById('f_date_to').value;
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(fetchData, 300);
+  }
+  ['f_employee','f_company','f_role','f_date_from','f_date_to'].forEach(id => {
+    document.getElementById(id).addEventListener('change', onFilterChange);
+  });
+
+  function exportCSV() {
+    if (!allRows.length) return;
+    const headers = ['Date','Employee ID','Employee Name','Companies','Roles','Total Hours','Daily Salary'];
+    const rows = allRows.map(r => [
+      r.work_date,
+      r.employee_id,
+      r.employee_name,
+      r.companies.join('; '),
+      r.roles.join('; '),
+      r.total_hours,
+      r.daily_salary != null ? r.daily_salary.toFixed(2) : ''
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'eztime_export.csv'; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  (async () => { await loadOptions(); await fetchData(); })();
+</script>
+</body>
+</html>

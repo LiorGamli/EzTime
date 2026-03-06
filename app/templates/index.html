@@ -1,0 +1,1049 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EZTIME – Attendance</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>body{background:#f0f2f5!important;font-family:"DM Sans",sans-serif;} input,select,button,textarea{font-family:"DM Sans",sans-serif;} .ez-mono{font-family:"DM Mono",monospace;}</style>
+  </head>
+  <body class="text-slate-900">
+    <nav style="background:#1e293b;padding:0 32px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100">
+      <span style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:#f59e0b;letter-spacing:-0.5px">EZ<span style="color:white">TIME</span></span>
+      <div style="display:flex;gap:4px">
+        <a href="/" style="padding:6px 16px;border-radius:8px;font-size:13px;font-weight:500;color:#fff;background:rgba(255,255,255,0.12);text-decoration:none">⏱ Attendance</a>
+        <a href="/analytics" style="padding:6px 16px;border-radius:8px;font-size:13px;font-weight:500;color:rgba(255,255,255,0.5);text-decoration:none">📊 Analytics</a>
+      </div>
+    </nav>
+    <div class="max-w-6xl mx-auto p-6">
+      <!-- Back to analytics if coming from there -->
+      <div id="backBanner" style="display:none;margin-bottom:12px">
+        <a href="/analytics" style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#64748b;text-decoration:none;padding:6px 12px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;box-shadow:0 1px 2px rgba(0,0,0,0.05);transition:all 0.15s" onmouseover="this.style.color='#1e293b'" onmouseout="this.style.color='#64748b'">
+          ← Back to Analytics
+        </a>
+      </div>
+      <header class="mb-6">
+        <h1 style="font-family:Syne,sans-serif;font-weight:700;font-size:26px;color:#0f172a">Holding Company</h1>
+        <p style="color:#64748b;font-size:13px;margin-top:3px">Day Summary</p>
+      </header>
+
+      <!-- Filters -->
+      <form class="bg-white rounded-2xl shadow p-5 mb-6 border border-slate-100" method="get" action="/">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div style="position:relative">
+            <label class="text-sm text-slate-700">Employee</label>
+            <!-- Hidden real select for form submit -->
+            <select id="employeeSelect" name="employee_id" style="display:none">
+              {% for e in employees %}
+              <option value="{{ e.employee_id }}" {% if (e.employee_id|string) == (selected_employee_id|string) %}selected{% endif %}>
+                {{ e.employee_id }} — {{ e.employee_name }}
+              </option>
+              {% endfor %}
+            </select>
+            <!-- Searchable picker -->
+            <div id="empPickerWrap" style="position:relative;margin-top:4px">
+              <input id="empSearch" type="text" placeholder="Search by name or ID…"
+                autocomplete="off"
+                style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:13px;background:#f8fafc;outline:none;cursor:pointer"
+                onfocus="openEmpDropdown()" oninput="filterEmpDropdown(this.value)" />
+              <div id="empDropdown" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid #e2e8f0;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.1);max-height:220px;overflow-y:auto;z-index:50"></div>
+            </div>
+          </div>
+
+          <div>
+            <label class="text-sm text-slate-700">Date</label>
+            <input
+              id="dateInput"
+              type="date"
+              name="work_date"
+              value="{{ selected_date }}"
+              max="{{ today }}"
+              class="w-full mt-1 border rounded-lg p-2"
+            />
+          </div>
+
+          <div class="flex items-end">
+            <button
+              type="submit"
+              class="w-full bg-slate-900 text-white px-4 py-2 rounded-xl"
+              title="Reloads the server-rendered view (optional). AJAX works without refresh."
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left -->
+        <div class="lg:col-span-2 space-y-6">
+          <!-- Report a Shift -->
+          <div class="bg-white rounded-2xl shadow p-5 border border-slate-100">
+            <div class="flex items-center justify-between gap-4">
+              <h2 class="text-xl font-semibold">Report a Shift</h2>
+              <span class="text-xs text-slate-500">
+                Employee: <span class="font-semibold" id="pillEmployee">{{ selected_employee_id }}</span> ·
+                Date: <span class="font-semibold" id="pillDate">{{ selected_date }}</span>
+              </span>
+            </div>
+
+            <input id="editingShiftId" type="hidden" value="" />
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div>
+                <label class="text-sm text-slate-700">Company</label>
+                <select id="companySelect" class="w-full mt-1 border rounded-lg p-2"></select>
+                <p id="companyHint" class="text-xs text-slate-500 mt-1 hidden"></p>
+              </div>
+
+              <div>
+                <label class="text-sm text-slate-700">Role</label>
+                <select id="roleSelect" class="w-full mt-1 border rounded-lg p-2"></select>
+                <p id="roleHint" class="text-xs text-slate-500 mt-1 hidden"></p>
+              </div>
+
+              <div>
+                <label class="text-sm text-slate-700">Start Time</label>
+                <input id="startTime" type="hidden" />
+                <button type="button" id="startTimeBtn" onclick="openWheel('start')"
+                  style="width:100%;margin-top:4px;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:15px;background:#f8fafc;cursor:pointer;text-align:center;color:#64748b;font-family:'DM Mono',monospace;transition:all 0.15s;letter-spacing:1px"
+                  onmouseover="this.style.borderColor='#1e293b'" onmouseout="this.style.borderColor='#e2e8f0'">
+                  -- : --
+                </button>
+              </div>
+
+              <div>
+                <label class="text-sm text-slate-700">End Time</label>
+                <input id="endTime" type="hidden" />
+                <button type="button" id="endTimeBtn" onclick="openWheel('end')"
+                  style="width:100%;margin-top:4px;border:1.5px solid #e2e8f0;border-radius:8px;padding:9px 12px;font-size:15px;background:#f8fafc;cursor:pointer;text-align:center;color:#64748b;font-family:'DM Mono',monospace;transition:all 0.15s;letter-spacing:1px"
+                  onmouseover="this.style.borderColor='#1e293b'" onmouseout="this.style.borderColor='#e2e8f0'">
+                  -- : --
+                </button>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-3 mt-4 flex-wrap">
+              <button id="addShiftBtn" class="bg-slate-900 text-white px-4 py-2 rounded-xl">
+                Add Shift
+              </button>
+
+              <button
+                id="cancelEditBtn"
+                type="button"
+                class="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 hidden"
+              >
+                Cancel Edit
+              </button>
+
+              <button
+                id="clearBtn"
+                type="button"
+                class="px-4 py-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50"
+              >
+                Clear
+              </button>
+
+              <p id="msg" class="text-sm text-slate-600"></p>
+            </div>
+
+            <p class="text-xs text-slate-500 mt-3">
+              You can add multiple shifts for the same day (split shifts). Overlap and unreasonable inputs are blocked.
+            </p>
+          </div>
+
+          <!-- Shifts table -->
+          <div class="bg-white rounded-2xl shadow p-5 border border-slate-100">
+            <div class="flex items-center justify-between">
+              <h2 class="text-xl font-semibold">Shifts</h2>
+              <span class="text-xs text-slate-500">Live updates (no refresh)</span>
+            </div>
+
+            <p
+              id="noShiftsMsg"
+              class="text-sm text-slate-600 mt-3 {% if summary and summary.shifts and summary.shifts|length > 0 %}hidden{% endif %}"
+            >
+              No shifts for this day yet.
+            </p>
+
+            <div class="overflow-x-auto mt-3">
+              <table class="w-full border-collapse text-sm">
+                <thead>
+                  <tr class="bg-slate-100 text-left">
+                    <th class="p-2 border">Company</th>
+                    <th class="p-2 border">Role</th>
+                    <th class="p-2 border">Start</th>
+                    <th class="p-2 border">End</th>
+                    <th class="p-2 border">Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody id="shiftsTbody">
+                  {% if summary and summary.shifts %}
+                    {% for sh in summary.shifts %}
+                      <tr data-id="{{ sh.id }}" data-company="{{ sh.company }}" data-role="{{ sh.role }}" data-start="{{ sh.start_time }}" data-end="{{ sh.end_time }}">
+                        <td class="p-2 border">{{ sh.company }}</td>
+                        <td class="p-2 border">{{ sh.role }}</td>
+                        <td class="p-2 border">{{ sh.start_time }}</td>
+                        <td class="p-2 border">{{ sh.end_time }}</td>
+                        <td class="p-2 border">
+                          <button class="editBtn text-slate-900 underline mr-3">Edit</button>
+                          <button class="deleteBtn text-red-600 underline">Delete</button>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+          <!-- Hours by Company / Role -->
+          <div class="bg-white rounded-2xl shadow p-5 border border-slate-100">
+            <div class="flex items-center justify-between">
+              <h2 class="text-xl font-semibold">Hours by Company &amp; Role</h2>
+              <span class="text-xs text-slate-500">Aggregated per day</span>
+            </div>
+
+            <p id="noHoursMsg" class="text-sm text-slate-600 mt-3 {% if summary and summary.hours_by_company_role and summary.hours_by_company_role|length > 0 %}hidden{% endif %}">
+              No data yet.
+            </p>
+
+            <div class="overflow-x-auto mt-3">
+              <table class="w-full border-collapse text-sm">
+                <thead>
+                  <tr class="bg-slate-100 text-left">
+                    <th class="p-2 border">Company</th>
+                    <th class="p-2 border">Role</th>
+                    <th class="p-2 border text-right">Hours</th>
+                  </tr>
+                </thead>
+                <tbody id="hoursBreakdownTbody">
+                  {% if summary and summary.hours_by_company_role %}
+                    {% for row in summary.hours_by_company_role %}
+                      <tr>
+                        <td class="p-2 border">{{ row.company }}</td>
+                        <td class="p-2 border">{{ row.role }}</td>
+                        <td class="p-2 border text-right font-semibold">{{ row.hours }}</td>
+                      </tr>
+                    {% endfor %}
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        <!-- Right: Summary -->
+        <div class="bg-white rounded-2xl shadow p-5 border border-slate-100">
+          <h2 class="text-xl font-semibold mb-4">Day Summary</h2>
+
+          <div id="summaryEmptyState" style="text-align:center;padding:32px 12px;{% if summary and summary.shifts and summary.shifts|length > 0 %}display:none{% endif %}">
+            <div style="font-size:28px;margin-bottom:8px">📋</div>
+            <div style="font-size:13px;font-weight:500;color:#64748b">No shifts yet</div>
+            <div style="font-size:12px;color:#94a3b8;margin-top:4px">Add a shift to see the summary</div>
+          </div>
+          <div id="summaryContent" class="space-y-3 text-sm" style="{% if not summary or not summary.shifts or summary.shifts|length == 0 %}display:none{% endif %}">
+            <div class="flex justify-between">
+              <span class="text-slate-600">Total hours</span>
+              <span id="sum_total" class="font-semibold">{{ summary.total_hours if summary else "-" }}</span>
+            </div>
+
+            <div class="flex justify-between">
+              <span class="text-slate-600">Night hours</span>
+              <span id="sum_night" class="font-semibold">{{ summary.night_hours if summary else "-" }}</span>
+            </div>
+
+            <div class="flex justify-between">
+              <span class="text-slate-600">OT threshold</span>
+              <span id="sum_thr" class="font-semibold">{{ summary.overtime_threshold if summary else "-" }}</span>
+            </div>
+
+            <hr class="my-2" />
+
+            <div class="flex justify-between">
+              <span class="text-slate-600">H100</span>
+              <span id="sum_h100" class="font-semibold">{{ summary.h100 if summary else "-" }}</span>
+            </div>
+
+            <div class="flex justify-between">
+              <span class="text-slate-600">H125</span>
+              <span id="sum_h125" class="font-semibold">{{ summary.h125 if summary else "-" }}</span>
+            </div>
+
+            <div class="flex justify-between">
+              <span class="text-slate-600">H150</span>
+              <span id="sum_h150" class="font-semibold">{{ summary.h150 if summary else "-" }}</span>
+            </div>
+
+            <hr class="my-2" />
+
+            <div class="flex justify-between">
+              <span class="text-slate-600">Max rate</span>
+              <span id="sum_rate" class="font-semibold">{% if summary %}₪{{ summary.max_rate }}{% else %}-{% endif %}</span>
+            </div>
+
+            <div class="flex justify-between">
+              <span class="text-slate-600">Daily salary</span>
+              <span id="sum_salary" class="font-semibold">{% if summary %}₪{{ "%.2f"|format(summary.daily_salary) }}{% else %}-{% endif %}</span>
+            </div>
+
+            <div class="flex justify-between">
+              <span class="text-slate-600">Daily deficit</span>
+              <span id="sum_deficit" class="font-semibold">{{ summary.daily_deficit if summary else "-" }}</span>
+            </div>
+          </div>
+
+          </div><!-- /summaryContent -->
+          <p class="text-xs text-slate-500 mt-4">
+            Salary uses the highest hourly rate among (company, role) worked on the selected day.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Show back banner if referred from analytics
+      if (document.referrer && document.referrer.includes('/analytics')) {
+        document.getElementById('backBanner').style.display = 'block';
+      }
+      // Also check URL param
+      if (new URLSearchParams(window.location.search).get('from') === 'analytics') {
+        document.getElementById('backBanner').style.display = 'block';
+      }
+
+      // Set max date to today
+      document.getElementById('dateInput').max = new Date().toISOString().split('T')[0];
+
+      const employeeSelect = document.getElementById("employeeSelect");
+      const dateInput = document.getElementById("dateInput");
+      const companySelect = document.getElementById("companySelect");
+      const roleSelect = document.getElementById("roleSelect");
+      const addShiftBtn = document.getElementById("addShiftBtn");
+      const clearBtn = document.getElementById("clearBtn");
+      const cancelEditBtn = document.getElementById("cancelEditBtn");
+      const editingShiftId = document.getElementById("editingShiftId");
+      const msg = document.getElementById("msg");
+
+      const pillEmployee = document.getElementById("pillEmployee");
+      const pillDate = document.getElementById("pillDate");
+      const companyHint = document.getElementById("companyHint");
+      const roleHint = document.getElementById("roleHint");
+
+      let cachedRolesByCompany = {};
+      let isSaving = false;
+
+      function setMessage(text, isError=false) {
+        msg.textContent = text || "";
+        msg.className = "text-sm " + (isError ? "text-red-600" : "text-slate-600");
+      }
+
+      function setHints({companyText = "", roleText = ""} = {}) {
+        if (companyText) {
+          companyHint.textContent = companyText;
+          companyHint.classList.remove("hidden");
+        } else {
+          companyHint.classList.add("hidden");
+        }
+        if (roleText) {
+          roleHint.textContent = roleText;
+          roleHint.classList.remove("hidden");
+        } else {
+          roleHint.classList.add("hidden");
+        }
+      }
+
+      function fillRoles(company) {
+        roleSelect.innerHTML = "";
+        const roles = cachedRolesByCompany[company] || [];
+        roles.forEach(r => {
+          const opt = document.createElement("option");
+          opt.value = r;
+          opt.textContent = r;
+          roleSelect.appendChild(opt);
+        });
+
+        if (roles.length === 0) setHints({ roleText: "No roles found for selected company (check rates table)." });
+        else setHints({ roleText: "" });
+      }
+
+      async function loadOptions() {
+        setMessage("");
+        setHints();
+
+        const employee_id = employeeSelect.value;
+
+        pillEmployee.textContent = employee_id;
+        pillDate.textContent = dateInput.value || "";
+
+        const res = await fetch(`/api/v1/options?employee_id=${encodeURIComponent(employee_id)}`);
+        if (!res.ok) {
+          setMessage("Failed to load options.", true);
+          return;
+        }
+        const data = await res.json();
+
+        cachedRolesByCompany = data.roles_by_company || {};
+
+        companySelect.innerHTML = "";
+        (data.companies || []).forEach(c => {
+          const opt = document.createElement("option");
+          opt.value = c;
+          opt.textContent = c;
+          companySelect.appendChild(opt);
+        });
+
+        if (!data.companies || data.companies.length === 0) {
+          setHints({ companyText: "No companies found for this employee (check rates table)." });
+          roleSelect.innerHTML = "";
+          return;
+        }
+
+        fillRoles(companySelect.value);
+        companySelect.onchange = () => fillRoles(companySelect.value);
+      }
+
+      function updateSummary(s) {
+        // Toggle empty state
+        const emptyState = document.getElementById("summaryEmptyState");
+        const summaryContent = document.getElementById("summaryContent");
+        const hasShifts = s.shifts && s.shifts.length > 0;
+        if (emptyState) emptyState.style.display = hasShifts ? "none" : "block";
+        if (summaryContent) summaryContent.style.display = hasShifts ? "block" : "none";
+
+        if (!hasShifts) return;
+
+        const map = {
+          total: s.total_hours,
+          night: s.night_hours,
+          thr: s.overtime_threshold,
+          h100: s.h100,
+          h125: s.h125,
+          h150: s.h150,
+          rate: s.max_rate != null ? '₪' + s.max_rate : '-',
+          salary: s.daily_salary != null ? '₪' + s.daily_salary.toFixed(2) : '-',
+          deficit: s.daily_deficit,
+        };
+        for (const [k,v] of Object.entries(map)) {
+          const el = document.getElementById(`sum_${k}`);
+          if (el && v !== undefined && v !== null) el.textContent = v;
+        }
+      }
+
+      function updateHoursBreakdown(s) {
+        const tbody = document.getElementById("hoursBreakdownTbody");
+        const empty = document.getElementById("noHoursMsg");
+        if (!tbody) return;
+
+        tbody.innerHTML = "";
+        const rows = s.hours_by_company_role || [];
+        if (rows.length > 0) {
+          empty && empty.classList.add("hidden");
+          rows.forEach(row => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td class="p-2 border">${row.company}</td>
+              <td class="p-2 border">${row.role}</td>
+              <td class="p-2 border text-right font-semibold">${row.hours}</td>
+            `;
+            tbody.appendChild(tr);
+          });
+        } else {
+          empty && empty.classList.remove("hidden");
+        }
+      }
+
+      // Attach edit/delete listeners to all rows in tbody (works for both server-rendered and JS-created)
+      function attachRowListeners() {
+        const tbody = document.getElementById("shiftsTbody");
+        if (!tbody) return;
+        tbody.querySelectorAll("tr[data-id]").forEach(tr => {
+          // avoid double-binding
+          if (tr.dataset.bound === "1") return;
+          tr.dataset.bound = "1";
+
+          const sh = {
+            id: parseInt(tr.dataset.id),
+            company: tr.dataset.company,
+            role: tr.dataset.role,
+            start_time: tr.dataset.start,
+            end_time: tr.dataset.end,
+          };
+
+          tr.querySelector(".editBtn").addEventListener("click", (e) => {
+            e.preventDefault();
+            enterEditMode(sh);
+          });
+
+          tr.querySelector(".deleteBtn").addEventListener("click", async (e) => {
+            e.preventDefault();
+            await deleteShift(sh.id);
+          });
+        });
+      }
+
+      function updateShiftsTable(s) {
+        const tbody = document.getElementById("shiftsTbody");
+        const empty = document.getElementById("noShiftsMsg");
+        if (!tbody) return;
+
+        tbody.innerHTML = "";
+        if (s.shifts && s.shifts.length > 0) {
+          empty && empty.classList.add("hidden");
+          s.shifts.forEach(sh => {
+            const tr = document.createElement("tr");
+            tr.setAttribute("data-id", sh.id);
+            tr.setAttribute("data-company", sh.company);
+            tr.setAttribute("data-role", sh.role);
+            tr.setAttribute("data-start", sh.start_time);
+            tr.setAttribute("data-end", sh.end_time);
+            tr.innerHTML = `
+              <td class="p-2 border">${sh.company}</td>
+              <td class="p-2 border">${sh.role}</td>
+              <td class="p-2 border">${sh.start_time}</td>
+              <td class="p-2 border">${sh.end_time}</td>
+              <td class="p-2 border">
+                <button class="editBtn text-slate-900 underline mr-3">Edit</button>
+                <button class="deleteBtn text-red-600 underline">Delete</button>
+              </td>
+            `;
+            tbody.appendChild(tr);
+          });
+        } else {
+          empty && empty.classList.remove("hidden");
+        }
+        // Always attach listeners after updating table
+        attachRowListeners();
+      }
+
+      function enterEditMode(shift) {
+        editingShiftId.value = shift.id;
+
+        // Ensure selects contain the right values:
+        companySelect.value = shift.company;
+        fillRoles(companySelect.value);
+        roleSelect.value = shift.role;
+
+        document.getElementById("startTime").value = shift.start_time;
+        document.getElementById("endTime").value = shift.end_time;
+
+        addShiftBtn.textContent = "Save Changes";
+        cancelEditBtn.classList.remove("hidden");
+        setMessage("Editing shift…");
+      }
+
+      function exitEditMode() {
+        editingShiftId.value = "";
+        addShiftBtn.textContent = "Add Shift";
+        cancelEditBtn.classList.add("hidden");
+      }
+
+      async function deleteShift(shiftId) {
+        const ok = confirm("Delete this shift?");
+        if (!ok) return;
+
+        setMessage("Deleting shift...");
+        const res = await fetch(`/api/v1/shifts/${shiftId}`, { method: "DELETE" });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          setMessage(err.detail || "Failed to delete shift", true);
+          return;
+        }
+
+        const summary = await res.json();
+        setMessage("Shift deleted ✅");
+        exitEditMode();
+        updateSummary(summary);
+        updateShiftsTable(summary);
+        updateHoursBreakdown(summary);
+      }
+
+      async function saveShift() {
+        if (isSaving) return;
+
+        const startTimeEl = document.getElementById("startTime");
+        const endTimeEl = document.getElementById("endTime");
+
+        const payload = {
+          employee_id: employeeSelect.value,
+          work_date: dateInput.value,
+          company: companySelect.value,
+          role: roleSelect.value,
+          start_time: startTimeEl.value,
+          end_time: endTimeEl.value,
+        };
+
+        if (!payload.work_date) return setMessage("Please select a date.", true);
+        const today = new Date().toISOString().split('T')[0];
+        if (payload.work_date > today) return setMessage("לא ניתן לדווח משמרת לתאריך עתידי.", true);
+        if (!payload.company || !payload.role) return setMessage("Please select company and role.", true);
+        if (!payload.start_time || !payload.end_time) return setMessage("Please fill start time and end time.", true);
+
+        const isEdit = !!editingShiftId.value;
+        const url = isEdit ? `/api/v1/shifts/${editingShiftId.value}` : "/api/v1/shifts";
+        const method = isEdit ? "PUT" : "POST";
+
+        isSaving = true;
+        addShiftBtn.disabled = true;
+        addShiftBtn.classList.add("opacity-60", "cursor-not-allowed");
+        setMessage(isEdit ? "Saving changes..." : "Saving shift...");
+
+        const res = await fetch(url, {
+          method,
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          setMessage(err.detail || "Failed to save shift", true);
+          isSaving = false;
+          addShiftBtn.disabled = false;
+          addShiftBtn.classList.remove("opacity-60", "cursor-not-allowed");
+          return;
+        }
+
+        const summary = await res.json();
+        setMessage(isEdit ? "Shift updated ✅" : "Shift added ✅");
+
+        updateSummary(summary);
+        updateShiftsTable(summary);
+        updateHoursBreakdown(summary);
+
+        startTimeEl.value = "";
+        endTimeEl.value = "";
+
+        exitEditMode();
+
+        isSaving = false;
+        addShiftBtn.disabled = false;
+        addShiftBtn.classList.remove("opacity-60", "cursor-not-allowed");
+      }
+
+      function clearInputs() {
+        document.getElementById("startTime").value = "";
+        document.getElementById("endTime").value = "";
+        setMessage("");
+      }
+
+      addShiftBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        saveShift();
+      });
+
+      clearBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        clearInputs();
+      });
+
+      cancelEditBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        exitEditMode();
+        clearInputs();
+      });
+
+      employeeSelect.addEventListener("change", async () => {
+        await loadOptions();
+        exitEditMode();
+        setMessage("Employee changed. You can add shifts now.");
+      });
+
+      dateInput.addEventListener("change", () => {
+        pillDate.textContent = dateInput.value || "";
+      });
+
+
+      // ── EMPLOYEE SEARCHABLE PICKER ──────────────────────────────────────────
+      const empData = [
+        {% for e in employees %}
+        { id: "{{ e.employee_id }}", name: "{{ e.employee_name }}" },
+        {% endfor %}
+      ];
+      empData.sort((a,b) => a.id.localeCompare(b.id));
+
+      let currentEmpId = "{{ selected_employee_id }}";
+
+      function renderEmpList(filtered) {
+        const dd = document.getElementById('empDropdown');
+        dd.innerHTML = '';
+        filtered.forEach(e => {
+          const div = document.createElement('div');
+          div.textContent = e.id + ' — ' + e.name;
+          div.style.cssText = 'padding:9px 14px;font-size:13px;cursor:pointer;transition:background 0.1s;' + (e.id===currentEmpId?'background:#f1f5f9;font-weight:500':'');
+          div.onmouseenter = () => div.style.background='#f8fafc';
+          div.onmouseleave = () => div.style.background = e.id===currentEmpId?'#f1f5f9':'';
+          div.onclick = () => selectEmp(e);
+          dd.appendChild(div);
+        });
+      }
+
+      function openEmpDropdown() {
+        renderEmpList(empData);
+        document.getElementById('empDropdown').style.display = 'block';
+        document.getElementById('empSearch').select();
+      }
+
+      function filterEmpDropdown(q) {
+        const lower = q.toLowerCase();
+        const filtered = empData.filter(e => e.id.toLowerCase().includes(lower) || e.name.toLowerCase().includes(lower));
+        renderEmpList(filtered);
+        document.getElementById('empDropdown').style.display = 'block';
+      }
+
+      function selectEmp(e) {
+        currentEmpId = e.id;
+        document.getElementById('empSearch').value = e.id + ' — ' + e.name;
+        document.getElementById('employeeSelect').value = e.id;
+        document.getElementById('empDropdown').style.display = 'none';
+        employeeSelect.dispatchEvent(new Event('change'));
+      }
+
+      document.addEventListener('click', (ev) => {
+        if (!document.getElementById('empPickerWrap').contains(ev.target)) {
+          document.getElementById('empDropdown').style.display = 'none';
+        }
+      });
+
+      // Init display
+      (function initEmpDisplay() {
+        const found = empData.find(e => e.id === currentEmpId);
+        if (found) document.getElementById('empSearch').value = found.id + ' — ' + found.name;
+      })();
+      // ────────────────────────────────────────────────────────────────────────
+      // Initial
+      loadOptions();
+      attachRowListeners(); // attach to server-rendered rows on page load
+    </script>
+  
+  <!-- ── WHEEL TIME PICKER ───────────────────────────────────────────── -->
+  <style>
+    /* MOBILE overlay */
+    .wheel-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.4); z-index: 400;
+    }
+    .wheel-overlay.open { display: block; }
+
+    /* MOBILE bottom sheet */
+    .wheel-sheet {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 401;
+      background: #f2f2f7;
+      border-radius: 14px 14px 0 0;
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+      transform: translateY(100%);
+      transition: transform 0.35s cubic-bezier(0.32,0.72,0,1);
+      /* IMPORTANT: no pointer-events when hidden on desktop */
+      pointer-events: none;
+    }
+    .wheel-sheet.open { transform: translateY(0); pointer-events: auto; }
+
+    /* DESKTOP popup – absolutely positioned, hidden by default */
+    .wheel-popup-desktop {
+      display: none;
+      position: absolute;
+      z-index: 401;
+      background: rgba(248,248,250,0.97);
+      backdrop-filter: saturate(180%) blur(24px);
+      -webkit-backdrop-filter: saturate(180%) blur(24px);
+      border: 1px solid rgba(0,0,0,0.12);
+      border-radius: 14px;
+      width: 230px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.16), 0 2px 8px rgba(0,0,0,0.06);
+      animation: wheelPop 0.18s cubic-bezier(0.34,1.3,0.64,1);
+    }
+    .wheel-popup-desktop.open { display: block; }
+    @keyframes wheelPop {
+      from { opacity:0; transform: scale(0.9) translateY(-6px); }
+      to   { opacity:1; transform: scale(1) translateY(0); }
+    }
+
+    /* Shared inner styles */
+    .wheel-handle {
+      width: 36px; height: 5px;
+      background: rgba(0,0,0,0.2); border-radius: 3px;
+      margin: 8px auto 0;
+    }
+    .wheel-toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px 8px;
+      border-bottom: 1px solid rgba(0,0,0,0.1);
+    }
+    .wheel-toolbar-title {
+      font-family: -apple-system, 'Syne', sans-serif;
+      font-size: 15px; font-weight: 600; color: #1c1c1e;
+    }
+    .wheel-cancel, .wheel-done {
+      background: none; border: none; cursor: pointer; padding: 4px 2px;
+      font-family: -apple-system, 'DM Sans', sans-serif;
+    }
+    .wheel-cancel { color: #8e8e93; font-size: 15px; font-weight: 400; }
+    .wheel-done   { color: #007aff; font-size: 15px; font-weight: 700; }
+
+    .wheel-body {
+      display: flex; align-items: center; justify-content: center;
+      position: relative; overflow: hidden; padding: 0 12px;
+    }
+    .wheel-band {
+      position: absolute; left: 12px; right: 12px;
+      top: 50%; transform: translateY(-50%);
+      pointer-events: none; z-index: 2;
+      border-top: 1px solid rgba(0,0,0,0.13);
+      border-bottom: 1px solid rgba(0,0,0,0.13);
+      background: rgba(0,0,0,0.045);
+      border-radius: 7px;
+    }
+    .wheel-fade {
+      position: absolute; inset: 0; pointer-events: none; z-index: 3;
+    }
+    .wheel-sep {
+      font-family: -apple-system, 'DM Mono', monospace;
+      font-weight: 400; color: #1c1c1e; z-index: 4;
+      position: relative; padding: 0 3px; top: -1px; flex-shrink: 0;
+    }
+    .wheel-col {
+      flex: 1; overflow-y: scroll; overflow-x: hidden;
+      scroll-snap-type: y mandatory;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none; position: relative; z-index: 4;
+    }
+    .wheel-col::-webkit-scrollbar { display: none; }
+    .wheel-item {
+      scroll-snap-align: center;
+      display: flex; align-items: center; justify-content: center;
+      font-family: -apple-system, 'DM Mono', monospace;
+      font-weight: 300; color: #8e8e93; flex-shrink: 0;
+      transition: color 0.1s, font-size 0.1s, font-weight 0.1s;
+    }
+    .wheel-item.selected { color: #1c1c1e; font-weight: 500; }
+    .wheel-item.near     { color: #3a3a3c; }
+
+    /* MOBILE sizes */
+    @media (max-width: 640px) {
+      .wheel-popup-desktop { display: none !important; }
+      .wheel-body  { height: 220px; }
+      .wheel-band  { height: 44px; }
+      .wheel-col   { height: 220px; }
+      .wheel-item  { height: 44px; font-size: 26px; }
+      .wheel-item.selected { font-size: 28px; }
+      .wheel-sep   { font-size: 28px; }
+      .wheel-fade  { background: linear-gradient(to bottom,
+          #f2f2f7 0%, rgba(242,242,247,.65) 22%,
+          transparent 38%, transparent 62%,
+          rgba(242,242,247,.65) 78%, #f2f2f7 100%); }
+    }
+
+    /* DESKTOP sizes */
+    @media (min-width: 641px) {
+      .wheel-sheet  { display: none !important; }
+      .wheel-overlay{ display: none !important; }
+      .wheel-body  { height: 180px; }
+      .wheel-band  { height: 36px; }
+      .wheel-col   { height: 180px; }
+      .wheel-item  { height: 36px; font-size: 20px; }
+      .wheel-item.selected { font-size: 22px; }
+      .wheel-sep   { font-size: 22px; }
+      .wheel-fade  { background: linear-gradient(to bottom,
+          rgba(248,248,250,.95) 0%, rgba(248,248,250,.5) 22%,
+          transparent 38%, transparent 62%,
+          rgba(248,248,250,.5) 78%, rgba(248,248,250,.95) 100%); }
+    }
+  </style>
+
+  <!-- MOBILE: overlay + bottom sheet -->
+  <div class="wheel-overlay" id="wheelOverlay" onclick="closeWheel()"></div>
+  <div class="wheel-sheet" id="wheelSheet">
+    <div class="wheel-handle"></div>
+    <div class="wheel-toolbar">
+      <button class="wheel-cancel" onclick="closeWheel()">Cancel</button>
+      <div class="wheel-toolbar-title" id="wheelTitleMobile">Select Time</div>
+      <button class="wheel-done" onclick="confirmWheel('mobile')">Done</button>
+    </div>
+    <div class="wheel-body" id="wheelBodyMobile">
+      <div class="wheel-band"></div>
+      <div class="wheel-fade"></div>
+      <div class="wheel-col" id="wheelHoursMobile"></div>
+      <div class="wheel-sep">:</div>
+      <div class="wheel-col" id="wheelMinutesMobile"></div>
+    </div>
+  </div>
+
+  <!-- DESKTOP: anchored popup (appended to body, positioned via JS) -->
+  <div class="wheel-popup-desktop" id="wheelPopupDesktop">
+    <div class="wheel-toolbar">
+      <button class="wheel-cancel" onclick="closeWheel()">Cancel</button>
+      <div class="wheel-toolbar-title" id="wheelTitleDesktop">Select Time</div>
+      <button class="wheel-done" onclick="confirmWheel('desktop')">Done</button>
+    </div>
+    <div class="wheel-body" id="wheelBodyDesktop">
+      <div class="wheel-band"></div>
+      <div class="wheel-fade"></div>
+      <div class="wheel-col" id="wheelHoursDesktop"></div>
+      <div class="wheel-sep">:</div>
+      <div class="wheel-col" id="wheelMinutesDesktop"></div>
+    </div>
+  </div>
+
+  <script>
+    const isMobile = () => window.innerWidth <= 640;
+    const PAD = 2;
+    let wheelTarget = null;
+
+    function buildCol(colEl, count, fmt) {
+      colEl.innerHTML = '';
+      for (let i = 0; i < PAD; i++) { const d = document.createElement('div'); d.className='wheel-item'; colEl.appendChild(d); }
+      for (let i = 0; i < count; i++) { const d = document.createElement('div'); d.className='wheel-item'; d.textContent=fmt(i); colEl.appendChild(d); }
+      for (let i = 0; i < PAD; i++) { const d = document.createElement('div'); d.className='wheel-item'; colEl.appendChild(d); }
+    }
+
+    function itemH(colEl) {
+      const first = colEl.querySelector('.wheel-item');
+      return first ? first.offsetHeight : (isMobile() ? 44 : 36);
+    }
+
+    function scrollToIdx(colEl, idx, animated) {
+      const h = itemH(colEl);
+      if (animated) colEl.scrollTo({ top: idx * h, behavior: 'smooth' });
+      else          colEl.scrollTop = idx * h;
+    }
+
+    function getIdx(colEl) {
+      return Math.round(colEl.scrollTop / (itemH(colEl) || 1));
+    }
+
+    function highlightCol(colEl) {
+      const idx = getIdx(colEl);
+      colEl.querySelectorAll('.wheel-item').forEach((el, i) => {
+        const dist = Math.abs((i - PAD) - idx);
+        el.classList.toggle('selected', dist === 0);
+        el.classList.toggle('near', dist === 1);
+      });
+    }
+
+    function attachScroll(colEl) {
+      let tid;
+      colEl.addEventListener('scroll', () => {
+        highlightCol(colEl);
+        clearTimeout(tid);
+        tid = setTimeout(() => {
+          scrollToIdx(colEl, getIdx(colEl), true);
+          highlightCol(colEl);
+        }, 80);
+      }, { passive: true });
+    }
+
+    function initCols(suffix, h, m) {
+      const hCol = document.getElementById('wheelHours' + suffix);
+      const mCol = document.getElementById('wheelMinutes' + suffix);
+
+      // Clone to remove old listeners
+      const hNew = hCol.cloneNode(false); hCol.parentNode.replaceChild(hNew, hCol);
+      const mNew = mCol.cloneNode(false); mCol.parentNode.replaceChild(mNew, mCol);
+
+      buildCol(hNew, 24, i => String(i).padStart(2,'0'));
+      buildCol(mNew, 60, i => String(i).padStart(2,'0'));
+
+      requestAnimationFrame(() => {
+        scrollToIdx(hNew, h, false);
+        scrollToIdx(mNew, m, false);
+        highlightCol(hNew);
+        highlightCol(mNew);
+      });
+
+      attachScroll(hNew);
+      attachScroll(mNew);
+    }
+
+    function openWheel(target) {
+      wheelTarget = target;
+      const label = target === 'start' ? 'Start Time' : 'End Time';
+      const hidden = document.getElementById(target + 'Time');
+      let h = 8, m = 0;
+      if (hidden.value) { const p = hidden.value.split(':').map(Number); h = p[0]; m = p[1]; }
+
+      if (isMobile()) {
+        document.getElementById('wheelTitleMobile').textContent = label;
+        initCols('Mobile', h, m);
+        document.getElementById('wheelOverlay').classList.add('open');
+        requestAnimationFrame(() => document.getElementById('wheelSheet').classList.add('open'));
+      } else {
+        document.getElementById('wheelTitleDesktop').textContent = label;
+        initCols('Desktop', h, m);
+
+        const popup = document.getElementById('wheelPopupDesktop');
+        // Move to body so it's never clipped
+        if (popup.parentElement !== document.body) document.body.appendChild(popup);
+
+        popup.classList.add('open');
+
+        // Position anchored to button
+        const btn = document.getElementById(target + 'TimeBtn');
+        const rect = btn.getBoundingClientRect();
+        let top  = rect.bottom + window.scrollY + 6;
+        let left = rect.left + window.scrollX + rect.width / 2 - 115;
+        left = Math.max(8, Math.min(left, window.innerWidth - 238));
+        if (rect.bottom + 220 > window.innerHeight)
+          top = rect.top + window.scrollY - 210 - 6;
+        popup.style.top  = top  + 'px';
+        popup.style.left = left + 'px';
+      }
+    }
+
+    function confirmWheel(mode) {
+      const suffix = mode === 'mobile' ? 'Mobile' : 'Desktop';
+      const hCol = document.getElementById('wheelHours'   + suffix);
+      const mCol = document.getElementById('wheelMinutes' + suffix);
+      const h = getIdx(hCol), m = getIdx(mCol);
+      const val = String(h).padStart(2,'0') + ':' + String(m).padStart(2,'0');
+      document.getElementById(wheelTarget + 'Time').value = val;
+      const btn = document.getElementById(wheelTarget + 'TimeBtn');
+      btn.textContent = val; btn.style.color = '#1c1c1e'; btn.style.fontWeight = '500';
+      closeWheel();
+    }
+
+    function closeWheel() {
+      document.getElementById('wheelSheet').classList.remove('open');
+      document.getElementById('wheelOverlay').classList.remove('open');
+      document.getElementById('wheelPopupDesktop').classList.remove('open');
+    }
+
+    // Close desktop popup on outside click
+    document.addEventListener('click', e => {
+      const popup = document.getElementById('wheelPopupDesktop');
+      if (!popup.classList.contains('open')) return;
+      const startBtn = document.getElementById('startTimeBtn');
+      const endBtn   = document.getElementById('endTimeBtn');
+      if (!popup.contains(e.target) && e.target !== startBtn && e.target !== endBtn)
+        closeWheel();
+    });
+
+    // Swipe down to close mobile sheet
+    let _ty0 = 0;
+    document.getElementById('wheelSheet').addEventListener('touchstart', e => { _ty0 = e.touches[0].clientY; }, { passive: true });
+    document.getElementById('wheelSheet').addEventListener('touchend',   e => { if (e.changedTouches[0].clientY - _ty0 > 80) closeWheel(); }, { passive: true });
+
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeWheel(); });
+
+    const _origClearInputs = clearInputs;
+    clearInputs = function() {
+      _origClearInputs();
+      ['start','end'].forEach(t => {
+        const btn = document.getElementById(t+'TimeBtn');
+        if (btn) { btn.textContent = '-- : --'; btn.style.color = '#64748b'; btn.style.fontWeight = '400'; }
+      });
+    };
+
+    const _origEnterEdit = enterEditMode;
+    enterEditMode = function(shift) {
+      _origEnterEdit(shift);
+      ['start','end'].forEach(t => {
+        const val = t === 'start' ? shift.start_time : shift.end_time;
+        const btn = document.getElementById(t+'TimeBtn');
+        if (btn && val) { btn.textContent = val; btn.style.color = '#1c1c1e'; btn.style.fontWeight = '500'; }
+      });
+    };
+  </script>
+  <!-- ─────────────────────────────────────────────────────────────────── -->
+</body>
+</html>
